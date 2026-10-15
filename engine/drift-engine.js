@@ -1,7 +1,7 @@
 /* DRIFT engine. Includes code from Studio BRIKD's DRIFT tools by Ryan Ausden, used with permission. */
 (() => {
   if (window.DRIFT && window.DRIFT.version) return;
-  const VERSION = '0.7.2';
+  const VERSION = '0.7.3';
   const NS = 'http://www.w3.org/2000/svg';
   const AX = { wght: [400, 900], wdth: [23, 252] };
   const CAP = 1467 / 2048, DESC = 434 / 2048, XH = 1062 / 2048, SPACE = 200 / 2048;
@@ -325,7 +325,7 @@ html[data-drift-city="brisbane"] [data-city="perth" i],html[data-drift-city="per
     const items = st.lines.map((l, j) => [l, mv ? mv[j] : { e: 0, k: 1 }]).filter(([l]) => l.logo || l.text).map(([l, m]) => {
       if (l.logo) {
         const sv = l.el.querySelector('svg'), vb = sv && sv.viewBox && sv.viewBox.baseVal;
-        const aspL = num(l.el.getAttribute('data-drift-aspect'), vb && vb.width ? vb.width / vb.height : 999.969 / 95.1139);
+        const aspL = num(l.el.getAttribute('data-drift-aspect'), vb && vb.width ? vb.width / vb.height : 814 / 81.5426);
         return { l, fixed: true, h: W / aspL, k: m.k };
       }
       const hv = l.hv ? Math.max(0, hoverAt(l.hv, now || performance.now())) : 0;
@@ -388,6 +388,23 @@ html[data-drift-city="brisbane"] [data-city="perth" i],html[data-drift-city="per
     const m = (inStack ? 0 : num(cs.marginLeft, 0)) + num(cs.marginRight, 0);
     let w = par.clientWidth - pp.l - pp.r - m - own;
     const mx = num(cs.maxWidth, NaN); if (Number.isFinite(mx) && /px$/.test(cs.maxWidth)) w = Math.min(w, mx - (cs.boxSizing === 'border-box' ? own : 0));
+    return Math.max(0, w);
+  };
+  const roomW = (el) => {
+    let w = availW(el);
+    if (!el.getClientRects().length) return w;
+    const cs = getComputedStyle(el), own = num(cs.paddingLeft, 0) + num(cs.paddingRight, 0) + num(cs.borderLeftWidth, 0) + num(cs.borderRightWidth, 0);
+    const left = el.getBoundingClientRect().left, mr = num(cs.marginRight, 0);
+    let x = el, nudge = 0;
+    while (x.parentElement && x.parentElement !== document.body && x.parentElement !== document.documentElement) {
+      const a = x.parentElement;
+      if (a.getAttribute('data-drift') === 'stack') nudge += num(getComputedStyle(x).marginLeft, 0);
+      const acs = getComputedStyle(a);
+      if (!/^(visible|)$/.test(acs.overflowX)) break;
+      const r = a.getBoundingClientRect(), right = r.left + a.clientLeft + a.clientWidth - num(acs.paddingRight, 0);
+      if (a.clientWidth > 0) w = Math.min(w, right - (left - nudge) - own - mr);
+      x = a;
+    }
     return Math.max(0, w);
   };
   const cssSize = (el) => num(getComputedStyle(el).fontSize, 16);
@@ -543,7 +560,7 @@ html[data-drift-city="brisbane"] [data-city="perth" i],html[data-drift-city="per
   }
   function stickerRender(el, st) {
     if (!st.svg) return false;
-    const scale = cssSize(el) / st.R.size, W = availW(el);
+    const scale = cssSize(el) / st.R.size, W = roomW(el);
     st.L0W = st.L0W || st.L.W;
     st.s = W > 4 ? Math.min(scale, W / st.L0W) : scale;
     Object.assign(st.svg.style, { width: (st.L.W * st.s).toFixed(1) + 'px', height: (st.L.H * st.s).toFixed(1) + 'px', maxWidth: 'none' });
@@ -569,7 +586,7 @@ html[data-drift-city="brisbane"] [data-city="perth" i],html[data-drift-city="per
   function stickerReroll(el, st, tick) {
     const others = placed.filter((q) => q !== st.sticker), ready = READY.slice();
     const opt = ready.length ? st.opt : { ...st.opt, ground: 'flat' };
-    const W = availW(el); let s2 = null;
+    const W = roomW(el); let s2 = null;
     for (let tr = 0; tr < 8 && !s2; tr++) {
       const c = makeSticker(st.text, st.R, ready, others, rngFor('sticker|' + st.key + '|' + tick + (tr ? '|' + tr : '')), opt);
       if (!(W > 4) || stickerLayout(c, st.R).W * st.s <= W + 0.5) s2 = c;
@@ -740,7 +757,7 @@ html[data-drift-city="brisbane"] [data-city="perth" i],html[data-drift-city="per
 
   let LOGO = null;
   const logoReady = () => LOGO || (LOGO = fetch(LOGO_URL).then((r) => r.text()).then((t) => ({
-    vb: (t.match(/viewBox="([^"]+)"/) || [])[1] || '0 0 999.969 95.1139', paths: [...t.matchAll(/\sd="([^"]+)"/g)].map((m) => m[1]) }))
+    vb: (t.match(/viewBox="([^"]+)"/) || [])[1] || '0 0 814 81.5426', paths: [...t.matchAll(/\sd="([^"]+)"/g)].map((m) => m[1]) }))
     .catch((e) => { warn('logo not loaded', e); return null; }));
   async function logoInit(el, st) {
     const L = await logoReady(); if (!L || !L.paths.length) return;
@@ -766,7 +783,7 @@ html[data-drift-city="brisbane"] [data-city="perth" i],html[data-drift-city="per
     return !done;
   }
 
-  const BK = { appear: 0.4, snap: -8.97, snapT: 0.06, drift: 3.724, fadeAt: 0.9, fadeLen: 2.84, fadeExp: 1.06, cut: 3.62, lift: 4.0, steps: [-2, -1, 0, 1, 2, 2] };
+  const BK = { appear: 0.4, snap: -7.302, snapT: 0.06, drift: 3.0315, fadeAt: 0.9, fadeLen: 2.84, fadeExp: 1.06, cut: 3.62, lift: 4.0, steps: [-2, -1, 0, 1, 2, 2] };
   async function bookend(force) {
     const bk = document.querySelector('[data-drift-bookend]'); if (!bk) return;
     const h = document.documentElement;
