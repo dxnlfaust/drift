@@ -1,7 +1,7 @@
 /* DRIFT engine. Includes code from Studio BRIKD's DRIFT tools by Ryan Ausden, used with permission. */
 (() => {
   if (window.DRIFT && window.DRIFT.version) return;
-  const VERSION = '0.8.0';
+  const VERSION = '0.8.1';
   const NS = 'http://www.w3.org/2000/svg';
   const AX = { wght: [400, 900], wdth: [23, 252] };
   const CAP = 1467 / 2048, DESC = 434 / 2048, XH = 1062 / 2048, SPACE = 200 / 2048;
@@ -100,13 +100,20 @@ a[data-drift-icon][href="#"],a[data-drift-icon][href=""],a[data-drift-icon]:not(
 [data-drift-lineup] details:not([open]) summary [data-drift="sticker"],[data-drift-lineup] details[open] summary [data-drift="mix"]{display:none!important}
 [data-drift-lineup] details[open] summary [data-drift="sticker"]{display:block!important}
 [data-drift-lineup] details[open] [data-drift-lineup-plus]{transform:rotate(45deg)}
+@keyframes drift-rise{from{opacity:0;transform:translateY(14px)}}
 @media (min-width:992px){
-[data-drift-lineup]{position:relative;padding-right:52%;min-height:calc(100vh - 200px)}
-[data-drift-lineup] details[open] [data-drift-lineup-panel]{position:absolute;top:0;right:0;bottom:0;width:48%;padding:0;margin:0}
-[data-drift-lineup] [data-drift-lineup-panel]>*{position:sticky;top:var(--drift-sticky-top,96px)}
+[data-drift-lineup-frame],[data-drift-lineup]:not([data-drift-lineup-frame] *){position:relative;padding-right:52%;min-height:calc(100vh - 200px)}
+[data-drift-lineup-frame] [data-drift-lineup]{position:static;padding-right:0;min-height:0}
+[data-drift-lineup] details[open] [data-drift-lineup-panel]{position:absolute;top:0;right:0;bottom:0;width:46%;padding:0;margin:0}
+[data-drift-lineup] [data-drift-lineup-panel]>*{position:sticky;top:var(--drift-sticky-top,96px);animation:drift-rise .45s cubic-bezier(.2,.7,.2,1)}
 [data-drift-lineup] [data-drift-lineup-plus]{display:none}
 [data-drift-lineup] details[open] summary{cursor:default}
 }
+@media (hover:hover){
+[data-drift-lineup] summary [data-drift="mix"]{transition:transform .25s cubic-bezier(.2,.7,.2,1)}
+[data-drift-lineup] details:not([open]) summary:hover [data-drift="mix"]{transform:translateX(10px)}
+}
+@media (prefers-reduced-motion:reduce){[data-drift-lineup] [data-drift-lineup-panel]>*{animation:none}[data-drift-lineup] summary [data-drift="mix"]{transition:none}}
 [data-drift="mosaic"]>canvas.drift-mosaic{position:absolute;pointer-events:none}
 html.drift-js [data-drift-bookend]{position:fixed;inset:0;z-index:1000;transition:opacity .7s ease}
 html.drift-js [data-drift-bookend].is-leaving{opacity:0;pointer-events:none}
