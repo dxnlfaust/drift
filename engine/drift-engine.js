@@ -1,7 +1,7 @@
 /* DRIFT engine. Includes code from Studio BRIKD's DRIFT tools by Ryan Ausden, used with permission. */
 (() => {
   if (window.DRIFT && window.DRIFT.version) return;
-  const VERSION = '0.7.3';
+  const VERSION = '0.7.4';
   const NS = 'http://www.w3.org/2000/svg';
   const AX = { wght: [400, 900], wdth: [23, 252] };
   const CAP = 1467 / 2048, DESC = 434 / 2048, XH = 1062 / 2048, SPACE = 200 / 2048;
@@ -605,10 +605,16 @@ html[data-drift-city="brisbane"] [data-city="perth" i],html[data-drift-city="per
   async function mosaicInit(el, st) {
     st.img = el.querySelector('img'); st.alt = el.querySelectorAll('img')[1] || null;
     if (!st.img || still()) return;
-    if (!st.img.complete) await new Promise((r) => { st.img.addEventListener('load', r, { once: true }); st.img.addEventListener('error', r, { once: true }); setTimeout(r, 6000); });
-    if (!st.img.naturalWidth) return;
-    st.cv = document.createElement('canvas'); st.cv.className = 'drift-mosaic'; st.cv.setAttribute('aria-hidden', 'true');
-    el.appendChild(st.cv); st.r = rngFor('mosaic|' + st.key);
+    const setup = () => {
+      if (st.cv || !st.img.naturalWidth) return;
+      st.cv = document.createElement('canvas'); st.cv.className = 'drift-mosaic'; st.cv.setAttribute('aria-hidden', 'true');
+      el.appendChild(st.cv); st.r = rngFor('mosaic|' + st.key);
+    };
+    if (!st.img.complete) {
+      if (!(el.checkVisibility ? el.checkVisibility() : el.getClientRects().length)) { st.img.addEventListener('load', () => { setup(); if (st.cv) refit(); }, { once: true }); return; }
+      await new Promise((r) => { st.img.addEventListener('load', r, { once: true }); st.img.addEventListener('error', r, { once: true }); setTimeout(r, 6000); });
+    }
+    setup();
   }
   function coverRect(nw, nh, W, H) { const s = Math.max(W / nw, H / nh), sw = W / s, sh = H / s; return [(nw - sw) / 2, (nh - sh) / 2, sw, sh]; }
   function mosaicRender(el, st) {
@@ -841,6 +847,19 @@ html[data-drift-city="brisbane"] [data-city="perth" i],html[data-drift-city="per
     if (sk.ground !== 'flat' && !pic) { sk.ground = 'flat'; sk.flat = sk.flat || R.fills[2]; }
     return stickerSVG(sk, L, pic);
   }
+  function wireRows() {
+    document.addEventListener('toggle', (e) => {
+      const d = e.target; if (!d || d.tagName !== 'DETAILS' || !d.open) return;
+      if (!still()) d.querySelectorAll('[data-drift="sticker"]').forEach((el) => {
+        const st = STATE.get(el); if (!st || !st.svg || !st.unfold) return;
+        st.t0 = null; st.unfolded = false; st.svg.style.transform = 'scaleX(0)'; moving(el, (now) => stickerFrame(el, st, now));
+      });
+      requestAnimationFrame(() => {
+        const s = d.querySelector('summary') || d;
+        if (s.getBoundingClientRect().top < 0) s.scrollIntoView({ block: 'start', behavior: still() ? 'auto' : 'smooth' });
+      });
+    }, true);
+  }
   function wireHoverStickers() {
     const targets = new Set();
     document.querySelectorAll('[data-drift-hover="sticker" i]').forEach((w) => {
@@ -1072,7 +1091,7 @@ html[data-drift-city="brisbane"] [data-city="perth" i],html[data-drift-city="per
       });
     } else addEventListener('resize', refit);
     await initAll(document);
-    wireHoverStickers();
+    wireHoverStickers(); wireRows();
     document.documentElement.classList.add('drift-booted');
     setTimeout(() => { if (FRAMES || !MOV.size) return; STARVED = true; const now = performance.now(); for (const [el, fn] of [...MOV]) { try { fn(now); } catch (e) {} MOV.delete(el); } const bk = document.querySelector('[data-drift-bookend]'); if (bk) bk.remove(); }, 2500);
   }
