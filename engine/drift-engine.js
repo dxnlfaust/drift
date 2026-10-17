@@ -1,13 +1,14 @@
 /* DRIFT engine. Includes code from Studio BRIKD's DRIFT tools by Ryan Ausden, used with permission. */
 (() => {
   if (window.DRIFT && window.DRIFT.version) return;
-  const VERSION = '0.7.4';
+  const VERSION = '0.8.0';
   const NS = 'http://www.w3.org/2000/svg';
   const AX = { wght: [400, 900], wdth: [23, 252] };
   const CAP = 1467 / 2048, DESC = 434 / 2048, XH = 1062 / 2048, SPACE = 200 / 2048;
   const MG = [400, 700, 900], MD = [23, 50, 100, 160, 252];
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const lerp = (a, b, t) => a + (b - a) * t;
+  const ease = (t) => { t = Math.min(1, Math.max(0, t)); return t * t * (3 - 2 * t); };
   const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const seg = (arr, v) => { let i = 0; while (i < arr.length - 2 && v > arr[i + 1]) i++; return [i, clamp((v - arr[i]) / (arr[i + 1] - arr[i]), 0, 1)]; };
   const wordsOf = (text) => String(text || '').trim().split(/\s+/).filter(Boolean);
@@ -90,7 +91,22 @@
 @media (prefers-reduced-motion:reduce){[data-drift="marquee"].drift-run>.drift-track{animation:none}}
 html.drift-js [data-drift-menu]:not(.is-open){display:none}
 [data-drift="sticker"]>svg.drift-sticker{transform-origin:0 50%}
-[data-drift="mosaic"]{position:relative}
+[data-drift="mosaic"],[data-drift="stitch"]{position:relative}
+[data-drift="stitch"]>canvas.drift-mosaic{position:absolute;pointer-events:none}
+a[data-drift-icon][href="#"],a[data-drift-icon][href=""],a[data-drift-icon]:not([href]){display:none!important}
+[data-drift-icon]>svg.drift-icon{display:block;width:50%;height:50%}
+[data-drift-lineup] summary{list-style:none}
+[data-drift-lineup] summary::-webkit-details-marker{display:none}
+[data-drift-lineup] details:not([open]) summary [data-drift="sticker"],[data-drift-lineup] details[open] summary [data-drift="mix"]{display:none!important}
+[data-drift-lineup] details[open] summary [data-drift="sticker"]{display:block!important}
+[data-drift-lineup] details[open] [data-drift-lineup-plus]{transform:rotate(45deg)}
+@media (min-width:992px){
+[data-drift-lineup]{position:relative;padding-right:52%;min-height:calc(100vh - 200px)}
+[data-drift-lineup] details[open] [data-drift-lineup-panel]{position:absolute;top:0;right:0;bottom:0;width:48%;padding:0;margin:0}
+[data-drift-lineup] [data-drift-lineup-panel]>*{position:sticky;top:var(--drift-sticky-top,96px)}
+[data-drift-lineup] [data-drift-lineup-plus]{display:none}
+[data-drift-lineup] details[open] summary{cursor:default}
+}
 [data-drift="mosaic"]>canvas.drift-mosaic{position:absolute;pointer-events:none}
 html.drift-js [data-drift-bookend]{position:fixed;inset:0;z-index:1000;transition:opacity .7s ease}
 html.drift-js [data-drift-bookend].is-leaving{opacity:0;pointer-events:none}
@@ -665,6 +681,78 @@ html[data-drift-city="brisbane"] [data-city="perth" i],html[data-drift-city="per
   }
   function mosaicFrame(el, st, now) { const t = clockOf(el, st, now); if (t == null) { st.cv.remove(); st.cv = null; return false; } mosaicDraw(st, t); return true; }
 
+  const SG = { cols: 12, step: 0.1, settle: 0.8, hold: 4.6, swing: 0.7, lo: 0.2, hi: 0.8, jitter: 0.06, drift: 9 };
+  async function stitchInit(el, st) {
+    const ims = el.querySelectorAll('img'); st.a = ims[0]; st.b = ims[1] || null;
+    if (!st.a || !st.b || still()) return;
+    st.b.loading = 'eager';
+    const ok = (im) => im.complete && im.naturalWidth > 0;
+    const setup = () => {
+      if (st.cv || !ok(st.a) || !ok(st.b)) return;
+      st.cv = document.createElement('canvas'); st.cv.className = 'drift-mosaic'; st.cv.setAttribute('aria-hidden', 'true');
+      el.appendChild(st.cv); st.k = -1;
+    };
+    const late = () => { setup(); if (st.cv) refit(); };
+    if (!(ok(st.a) && ok(st.b))) {
+      if (!(el.checkVisibility ? el.checkVisibility() : el.getClientRects().length)) { [st.a, st.b].forEach((im) => { if (!ok(im)) im.addEventListener('load', late, { once: true }); }); return; }
+      await Promise.all([st.a, st.b].map((im) => ok(im) ? 0 : new Promise((r) => { im.addEventListener('load', r, { once: true }); im.addEventListener('error', r, { once: true }); setTimeout(r, 6000); })));
+    }
+    setup();
+  }
+  function stitchRender(el, st) {
+    if (!st.cv) return true;
+    const im = st.a, W = im.offsetWidth, H = im.offsetHeight; if (W < 8 || H < 8) return false;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    Object.assign(st.cv.style, { left: im.offsetLeft + 'px', top: im.offsetTop + 'px', width: W + 'px', height: H + 'px' });
+    if (st.W !== W || st.H !== H) {
+      st.W = W; st.H = H; st.cv.width = Math.round(W * dpr); st.cv.height = Math.round(H * dpr);
+      const cols = num(el.getAttribute('data-drift-cols'), SG.cols), rows = Math.max(1, Math.round(H / (W / cols)));
+      st.cols = cols; st.rows = rows;
+      const r = rngFor('stitch|' + st.key), gw = Math.ceil(cols / 3) + 2, gh = Math.ceil(rows / 3) + 2;
+      const grid = () => Array.from({ length: gw * gh }, () => r());
+      const g1 = grid(), g2 = grid(), at = (g, x, y) => {
+        const fx = x / 3, fy = y / 3, x0 = Math.floor(fx), y0 = Math.floor(fy), u = fx - x0, v = fy - y0, G = (i, j) => g[j * gw + i];
+        return lerp(lerp(G(x0, y0), G(x0 + 1, y0), u), lerp(G(x0, y0 + 1), G(x0 + 1, y0 + 1), u), v);
+      };
+      st.n1 = []; st.n2 = []; st.grain = [];
+      for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) { st.n1.push(at(g1, x, y)); st.n2.push(at(g2, x, y)); st.grain.push(r()); }
+      st.k = -1; st.on = null;
+    }
+    stitchDraw(st, clockOf(el, st));
+    moving(el, (now) => stitchFrame(el, st, now));
+    return true;
+  }
+  function stitchBalance(t) {
+    if (t < SG.settle) return lerp(0.5, SG.lo, ease(t / SG.settle));
+    const per = 2 * (SG.hold + SG.swing), u = (t - SG.settle) % per;
+    if (u < SG.hold) return SG.lo;
+    if (u < SG.hold + SG.swing) return lerp(SG.lo, SG.hi, ease((u - SG.hold) / SG.swing));
+    if (u < 2 * SG.hold + SG.swing) return SG.hi;
+    return lerp(SG.hi, SG.lo, ease((u - 2 * SG.hold - SG.swing) / SG.swing));
+  }
+  function stitchDraw(st, t) {
+    const n = st.cols * st.rows, k = t == null || t < 0 ? -1 : Math.floor(t / SG.step);
+    if (k === st.k && st.on) return; st.k = k;
+    const tq = Math.max(0, k) * SG.step, p = k < 0 ? 0.5 : stitchBalance(tq), c = 0.5 - 0.5 * Math.cos(2 * Math.PI * tq / SG.drift);
+    const jr = rngFor('stitch|' + st.key + '|' + k);
+    const val = st.grain.map((g, i) => (1 - c) * st.n1[i] + c * st.n2[i] + 0.35 * g);
+    const order = val.map((v, i) => i).sort((a, b) => val[a] - val[b]), rank = new Array(n);
+    order.forEach((i, j) => { rank[i] = (j + 0.5) / n; });
+    const on = rank.map((q) => q + (jr() - 0.5) * 2 * SG.jitter < p);
+    const cv = st.cv, ctx = cv.getContext('2d'), W = cv.width, H = cv.height, tw = W / st.cols, th = H / st.rows;
+    const A = coverRect(st.a.naturalWidth, st.a.naturalHeight, W, H), B = coverRect(st.b.naturalWidth, st.b.naturalHeight, W, H);
+    ctx.imageSmoothingEnabled = true;
+    for (let i = 0; i < n; i++) {
+      if (st.on && st.on[i] === on[i]) continue;
+      const x = i % st.cols, y = Math.floor(i / st.cols), x0 = Math.round(x * tw), y0 = Math.round(y * th), x1 = Math.round((x + 1) * tw), y1 = Math.round((y + 1) * th);
+      const [sx, sy, sw, sh] = on[i] ? B : A, im = on[i] ? st.b : st.a, kx = sw / W, ky = sh / H;
+      ctx.drawImage(im, sx + x0 * kx, sy + y0 * ky, (x1 - x0) * kx, (y1 - y0) * ky, x0, y0, x1 - x0, y1 - y0);
+    }
+    st.on = on;
+  }
+  function stitchFrame(el, st, now) { const t = clockOf(el, st, now); if (t == null) { if (st.cv) { st.cv.remove(); st.cv = null; } return false; } stitchDraw(st, t); return true; }
+  function stitchRestart(el) { const st = STATE.get(el); if (!st || !st.cv || still()) return; st.t0 = null; st.k = -2; moving(el, (now) => stitchFrame(el, st, now)); }
+
   function mixInit(el, st) {
     const R = RULES(); R.wdth = range(el.getAttribute('data-drift-wdth'), R.wdth); R.wght = range(el.getAttribute('data-drift-wght'), R.wght);
     R.contrast = num(el.getAttribute('data-drift-contrast'), R.contrast);
@@ -854,11 +942,47 @@ html[data-drift-city="brisbane"] [data-city="perth" i],html[data-drift-city="per
         const st = STATE.get(el); if (!st || !st.svg || !st.unfold) return;
         st.t0 = null; st.unfolded = false; st.svg.style.transform = 'scaleX(0)'; moving(el, (now) => stickerFrame(el, st, now));
       });
+      d.querySelectorAll('[data-drift="stitch"]').forEach(stitchRestart);
       requestAnimationFrame(() => {
         const s = d.querySelector('summary') || d;
         if (s.getBoundingClientRect().top < 0) s.scrollIntoView({ block: 'start', behavior: still() ? 'auto' : 'smooth' });
       });
     }, true);
+  }
+  const WIDE = matchMedia('(min-width: 992px)');
+  function wireLineups() {
+    const lists = [...document.querySelectorAll('[data-drift-lineup]')]; if (!lists.length) return;
+    const shown = (d) => (d.checkVisibility ? d.checkVisibility() : d.getClientRects().length > 0);
+    const ensure = () => {
+      if (!WIDE.matches) return;
+      lists.forEach((l) => {
+        const rows = [...l.querySelectorAll('details')].filter(shown);
+        if (rows.length && !rows.some((d) => d.open)) rows[0].open = true;
+      });
+    };
+    lists.forEach((l) => l.addEventListener('click', (e) => {
+      const s = e.target.closest('summary'); if (!s || !l.contains(s) || !WIDE.matches) return;
+      if (s.parentElement.open) e.preventDefault();
+    }));
+    if (WIDE.addEventListener) WIDE.addEventListener('change', ensure);
+    document.addEventListener('drift:city', () => requestAnimationFrame(ensure));
+    ensure();
+  }
+
+  const ICON_URL = (n) => `https://cdn.jsdelivr.net/npm/simple-icons@16.33.0/icons/${n}.svg`;
+  const icons = new Map();
+  function wireIcons() {
+    document.querySelectorAll('[data-drift-icon]').forEach((a) => {
+      const n = (a.getAttribute('data-drift-icon') || '').toLowerCase().replace(/[^a-z0-9]/g, ''); if (!n) return;
+      if (!a.getAttribute('aria-label')) a.setAttribute('aria-label', a.textContent.trim() || n);
+      if (!a.target) { a.target = '_blank'; a.rel = 'noopener'; }
+      if (!icons.has(n)) icons.set(n, fetch(ICON_URL(n)).then((r) => (r.ok ? r.text() : '')).then((t) => (t.match(/\sd="([^"]+)"/) || [])[1] || '').catch(() => ''));
+      icons.get(n).then((d) => {
+        if (!d || a.querySelector('svg.drift-icon')) return;
+        a.textContent = '';
+        a.insertAdjacentHTML('afterbegin', `<svg class="drift-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="${esc(d)}"/></svg>`);
+      });
+    });
   }
   function wireHoverStickers() {
     const targets = new Set();
@@ -1019,6 +1143,7 @@ html[data-drift-city="brisbane"] [data-city="perth" i],html[data-drift-city="per
     mix: { init: mixInit, render: mixRender, order: 3 },
     sticker: { init: stickerInit, render: stickerRender, order: 4 },
     mosaic: { init: mosaicInit, render: mosaicRender, order: 4 },
+    stitch: { init: stitchInit, render: stitchRender, order: 4 },
     stack: { init: stackInit, render: stackRender, order: 5 },
     marquee: { init: marqueeInit, render: marqueeRender, order: 6 },
   };
@@ -1091,7 +1216,7 @@ html[data-drift-city="brisbane"] [data-city="perth" i],html[data-drift-city="per
       });
     } else addEventListener('resize', refit);
     await initAll(document);
-    wireHoverStickers(); wireRows();
+    wireHoverStickers(); wireRows(); wireLineups(); wireIcons();
     document.documentElement.classList.add('drift-booted');
     setTimeout(() => { if (FRAMES || !MOV.size) return; STARVED = true; const now = performance.now(); for (const [el, fn] of [...MOV]) { try { fn(now); } catch (e) {} MOV.delete(el); } const bk = document.querySelector('[data-drift-bookend]'); if (bk) bk.remove(); }, 2500);
   }
