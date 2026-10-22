@@ -1,7 +1,7 @@
 /* DRIFT engine. Includes code from Studio BRIKD's DRIFT tools by Ryan Ausden, used with permission. */
 (() => {
   if (window.DRIFT && window.DRIFT.version) return;
-  const VERSION = '0.8.3';
+  const VERSION = '0.8.4';
   const NS = 'http://www.w3.org/2000/svg';
   const AX = { wght: [400, 900], wdth: [23, 252] };
   const CAP = 1467 / 2048, DESC = 434 / 2048, XH = 1062 / 2048, SPACE = 200 / 2048;
@@ -102,7 +102,7 @@ a[data-drift-icon][href="#"],a[data-drift-icon][href=""],a[data-drift-icon]:not(
 [data-drift-lineup] details[open] [data-drift-lineup-plus]{transform:rotate(45deg)}
 @keyframes drift-rise{from{opacity:0;transform:translateY(14px)}}
 @media (min-width:992px){
-[data-drift-lineup-frame],[data-drift-lineup]:not([data-drift-lineup-frame] *){--drift-feature-h:calc(100vh - var(--drift-sticky-top,112px) - var(--drift-feature-bottom,48px));--drift-feature-w:min(46%,calc(var(--drift-feature-h) * var(--drift-feature-ratio,0.672)));position:relative;padding-right:calc(var(--drift-feature-w) + var(--drift-feature-gap,80px));min-height:var(--drift-feature-h)}
+[data-drift-lineup-frame],[data-drift-lineup]:not([data-drift-lineup-frame] *){--drift-feature-h:calc(100vh - var(--drift-sticky-top,112px) - var(--drift-feature-bottom,48px));--drift-feature-w:min(46%,calc(var(--drift-feature-h) * var(--drift-feature-ratio,0.8)));position:relative;padding-right:calc(var(--drift-feature-w) + var(--drift-feature-gap,200px));min-height:var(--drift-feature-h)}
 [data-drift-lineup-frame] [data-drift-lineup]{position:static;padding-right:0;min-height:0}
 [data-drift-lineup] details[open] [data-drift-lineup-panel]{position:absolute;top:0;right:0;bottom:0;width:var(--drift-feature-w);padding:0;margin:0}
 [data-drift-lineup] [data-drift-lineup-panel]>*{position:sticky;top:var(--drift-sticky-top,112px);animation:drift-rise .45s cubic-bezier(.2,.7,.2,1)}
@@ -133,6 +133,8 @@ html.drift-menu-open{overflow:hidden}
 html:not(.drift-js) [data-drift-popup],html.drift-js [data-drift-popup]:not(.is-open){display:none!important}
 html.drift-js [data-drift-popup].is-open{display:flex!important;position:fixed;inset:0;z-index:960;overflow:auto;margin:0}
 html.drift-popup-open{overflow:hidden}
+html.drift-js [data-drift-popup].is-open>*{max-height:100%;overflow:auto;overscroll-behavior:contain}
+html.drift-js [data-drift-popup].is-open>*>:has([data-drift-popup-close]){position:sticky;top:0;z-index:2;background:inherit}
 html[data-drift-city="brisbane"] [data-city="perth" i],html[data-drift-city="perth"] [data-city="brisbane" i]{display:none!important}
 `;
   const injectCSS = () => { const s = document.createElement('style'); s.id = 'drift-engine-css'; s.textContent = CSS; document.head.appendChild(s); };
