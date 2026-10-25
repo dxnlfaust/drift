@@ -1,7 +1,7 @@
 /* DRIFT engine. Includes code from Studio BRIKD's DRIFT tools by Ryan Ausden, used with permission. */
 (() => {
   if (window.DRIFT && window.DRIFT.version) return;
-  const VERSION = '0.8.4';
+  const VERSION = '0.8.5';
   const NS = 'http://www.w3.org/2000/svg';
   const AX = { wght: [400, 900], wdth: [23, 252] };
   const CAP = 1467 / 2048, DESC = 434 / 2048, XH = 1062 / 2048, SPACE = 200 / 2048;
@@ -840,6 +840,14 @@ html[data-drift-city="brisbane"] [data-city="perth" i],html[data-drift-city="per
     menu.addEventListener('click', (e) => { if (e.target.closest('a[href]')) set(false); });
   }
   const CITY_KEY = 'drift-city';
+  const CITY_ALIAS = { brisbane: 'brisbane', bne: 'brisbane', bris: 'brisbane', qld: 'brisbane', perth: 'perth', per: 'perth', wa: 'perth' };
+  function cityFromUrl() {
+    const v = CITY_ALIAS[(qs.get('city') || '').toLowerCase().trim()] || '';
+    if (qs.has('city')) {
+      try { const u = new URL(location.href); u.searchParams.delete('city'); history.replaceState(history.state, '', u.pathname + u.search + u.hash); } catch (e) {}
+    }
+    return v;
+  }
   function setCity(c) {
     c = (c || '').toLowerCase(); if (!/^(brisbane|perth)?$/.test(c)) c = '';
     const h = document.documentElement; if (c) h.setAttribute('data-drift-city', c); else h.removeAttribute('data-drift-city');
@@ -849,7 +857,8 @@ html[data-drift-city="brisbane"] [data-city="perth" i],html[data-drift-city="per
     refit();
   }
   function wireCity() {
-    let c = ''; try { c = localStorage.getItem(CITY_KEY) || ''; } catch (e) {}
+    let c = cityFromUrl();
+    if (!c) { try { c = localStorage.getItem(CITY_KEY) || ''; } catch (e) {} }
     document.querySelectorAll('[data-drift-city-set]').forEach((b) => {
       asButton(b);
       const go = (e) => { e.preventDefault(); const v = (b.getAttribute('data-drift-city-set') || '').toLowerCase(); setCity(document.documentElement.getAttribute('data-drift-city') === v && b.hasAttribute('data-drift-city-toggle') && !document.querySelector('[data-drift-city-gate]') ? '' : v); };
