@@ -1,7 +1,7 @@
 /* DRIFT engine. Includes code from Studio BRIKD's DRIFT tools by Ryan Ausden, used with permission. */
 (() => {
   if (window.DRIFT && window.DRIFT.version) return;
-  const VERSION = '0.8.5';
+  const VERSION = '0.8.6';
   const NS = 'http://www.w3.org/2000/svg';
   const AX = { wght: [400, 900], wdth: [23, 252] };
   const CAP = 1467 / 2048, DESC = 434 / 2048, XH = 1062 / 2048, SPACE = 200 / 2048;
@@ -135,7 +135,7 @@ html.drift-js [data-drift-popup].is-open{display:flex!important;position:fixed;i
 html.drift-popup-open{overflow:hidden}
 html.drift-js [data-drift-popup].is-open>*{max-height:100%;overflow:auto;overscroll-behavior:contain}
 html.drift-js [data-drift-popup].is-open>*>:has([data-drift-popup-close]){position:sticky;top:0;z-index:2;background:inherit}
-html[data-drift-city="brisbane"] [data-city="perth" i],html[data-drift-city="perth"] [data-city="brisbane" i]{display:none!important}
+html[data-drift-city="brisbane"] [data-city^="perth" i],html[data-drift-city="perth"] [data-city^="brisbane" i]{display:none!important}
 `;
   const injectCSS = () => { const s = document.createElement('style'); s.id = 'drift-engine-css'; s.textContent = CSS; document.head.appendChild(s); };
 
@@ -518,7 +518,8 @@ html[data-drift-city="brisbane"] [data-city="perth" i],html[data-drift-city="per
   }
   function stickerLayout(st, R) {
     const run = wordRun(st.text, st.words), pad = R.pad, fs = R.size;
-    const top = XONLY.test(st.text) ? XH : CAP, desc = R.desc !== 'cut' && DESCENDERS.test(st.text) ? DESC : 0;
+    const even = R.desc === 'always';
+    const top = !even && XONLY.test(st.text) ? XH : CAP, desc = even || (R.desc !== 'cut' && DESCENDERS.test(st.text)) ? DESC : 0;
     const W = Math.max(2 * pad + 1, Math.round(2 * pad + run.ink * fs)), H = Math.round(2 * pad + (top + desc) * fs);
     return { W, H, fs, base: pad + top * fs, words: run.words.map((w) => ({ ...w, x: pad + (w.x - run.inL) * fs })), vis: st.sw * CAP * fs };
   }
@@ -565,6 +566,7 @@ html[data-drift-city="brisbane"] [data-city="perth" i],html[data-drift-city="per
   async function stickerInit(el, st) {
     const R = RULES();
     R.flat = num(el.getAttribute('data-drift-flat'), R.flat);
+    R.desc = (el.getAttribute('data-drift-desc') || R.desc).toLowerCase();
     R.wdth = range(el.getAttribute('data-drift-wdth'), R.wdth); R.wght = range(el.getAttribute('data-drift-wght'), R.wght);
     st.R = R; st.text = textOf(el);
     const pool = poolList();
